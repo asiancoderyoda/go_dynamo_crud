@@ -18,8 +18,9 @@ func NewInterface() *Interface {
 
 }
 
-func (db *Database) Health() *bool {
-
+func (db *Database) Health() bool {
+	_, err := db.conn.ListTables(&dynamodb.ListTablesInput{})
+	return err == nil
 }
 
 func (db *Database) FindAll() {
@@ -55,6 +56,17 @@ func (db *Database) CreateOrUpdate(entity interface{}, tableName string) (respon
 	return db.conn.PutItem(input)
 }
 
-func Delete() {
+func (db *Database) Delete(condition map[string]interface{}, tableName string) (response *dynamodb.DeleteItemOutput, err error) {
+	parsedCondition, err := dynamodbattribute.MarshalMap(condition)
 
+	if err != nil {
+		return nil, err
+	}
+
+	input := &dynamodb.DeleteItemInput{
+		Key:       parsedCondition,
+		TableName: aws.String(tableName),
+	}
+
+	return db.conn.DeleteItem(input)
 }
