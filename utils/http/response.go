@@ -20,15 +20,20 @@ func (res *Response) bytes() []byte {
 }
 
 func (res *Response) string() string {
-	body, err := json.Marshal(res)
-	if err != nil {
-		log.Println(err)
-	}
-	return string(body)
+	return string(res.bytes())
 }
 
-func (res *Response) response(w http.ResponseWriter, status int, body []byte) {
+func createResponse(data interface{}, status int) *Response {
+	return &Response{
+		Status: status,
+		Data:   data,
+	}
+}
+
+func (res *Response) response(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	w.Write(body)
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.WriteHeader(res.Status)
+	_, _ = w.Write(res.bytes())
+	log.Println(res.string())
 }

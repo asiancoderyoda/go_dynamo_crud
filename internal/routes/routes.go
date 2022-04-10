@@ -1,9 +1,12 @@
 package routes
 
 import (
-	"net/http"
-
+	"example.com/m/v2/internal/repositories/adapter"
 	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/middleware"
+	// ServerConfig
+	// HealthHandler
+	// ProductHandler
 )
 
 type Router struct {
@@ -18,66 +21,72 @@ func AppRouter() *Router {
 	}
 }
 
-func (r *Router) SetRouters(handler http.Handler) *chi.Mux {
+func (r *Router) SetRouters(repository adapter.Interface) *chi.Mux {
+	r.setConfigRouters()
+	r.RouterHealth(repository)
+	r.RouterProduct(repository)
 
+	return r.router
 }
 
-func (r *Router) setConfigRouters() *Config {
-	return &Config{}
+func (r *Router) setConfigRouters() {
+	r.EnableCors()
+	r.EnableLogger()
+	r.EnableTimeout()
+	r.EnableRecover()
+	r.EnableRequestID()
+	r.EnableRealIP()
 }
 
-func RouterHealthCheck() *chi.Mux {
+func (r *Router) RouterHealth(repo adapter.Interface) *chi.Mux {
+	handler := HealthHandler.NewRouter(repo)
+	r.router.Route("/health", func(r chi.Router) {
+		r.Post("/", handler.Post)
+		r.Get("/", handler.Get)
+		r.Put("/", handler.Put)
+		r.Delete("/", handler.Delete)
+		r.Options("/", handler.Options)
+	})
+}
+
+func (r *Router) RouterProduct(repo adapter.Interface) *chi.Mux {
+	handler := ProductHandler.NewRouter(repo)
+	r.router.Route("/product", func(r chi.Router) {
+		r.Post("/", handler.Post)
+		r.Get("/", handler.Get)
+		r.Put("/", handler.Put)
+		r.Delete("/", handler.Delete)
+		r.Options("/", handler.Options)
+	})
 	return chi.NewRouter()
 }
 
-func RouterProduct() *chi.Mux {
-	return chi.NewRouter()
+func (r *Router) EnableTimeout() *Router {
+	r.router.Use(middleware.Timeout(r.config.GetTimeout()))
+	return r
 }
 
-func (r *Router) EnableTimeout(next http.Handler) http.Handler {
-	return http.TimeoutHandler(next, r.config.GetTimeout(), "Request timed out")
+func (r *Router) EnableCors() *Router {
+	r.router.Use(r.config.Cors())
+	return r
 }
 
-func (r *Router) EnableCors(next http.Handler) http.Handler {
-	return r.config.Cors(next)
+func (r *Router) EnableLogger() *Router {
+	r.router.Use(middleware.Logger)
+	return r
 }
 
-func EnableRecovery(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer func() {
-			if err := recover(); err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				w.Write([]byte(`{"error": "Internal Server Error"}`))
-			}
-		}()
-		next.ServeHTTP(w, r)
-	})
+func (r *Router) EnableRecover() *Router {
+	r.router.Use(middleware.Recoverer)
+	return r
 }
 
-func EnableRequestID(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requestId := r.Header.Get("X-Request-Id")
-		if requestId == "" {
-			requestId = r.Header.Get("X-Request-Id")
-		}
-		if requestId == "" {
-			requestId = r.Header.Get("X-Request-Id")
-		}
-		w.Header().Set("X-Request-Id", requestId)
-		next.ServeHTTP(w, r)
-	})
+func (r *Router) EnableRequestID() *Router {
+	r.router.Use(middleware.RequestID)
+	return r
 }
 
-func EnableRealIP(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		realIP := r.Header.Get("X-Real-IP")
-		if realIP == "" {
-			realIP = r.Header.Get("X-Real-IP")
-		}
-		if realIP == "" {
-			realIP = r.Header.Get("X-Real-IP")
-		}
-		w.Header().Set("X-Real-IP", realIP)
-		next.ServeHTTP(w, r)
-	})
+func (r *Router) EnableRealIP() *Router {
+	r.router.Use(middleware.RealIP)
+	return r
 }
